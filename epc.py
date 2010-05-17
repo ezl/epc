@@ -8,46 +8,6 @@ import datetime
 ipshell = IPShellEmbed("Dropping to IPython shell")
 filename = "SPY-VXX-20090507-20100427.hdf5"
 
-def retrieve_preceding_prices(symbol, date, time, window, concurrent=True):
-    with h5py.File(filename) as root:
-        names = root[date]["names"]
-        symbol_index = list(names).index(symbol)
-        prices = root[date]["prices"][:, symbol_index]
-        times = root[date]["dates"].value
-        last_index = times.tolist().index(time)
-        if concurrent == True:
-            last_index += 1
-        first_index = last_index - window
-        if first_index >= 0:
-            return np.vstack((prices[first_index:last_index],
-                              times[first_index:last_index]
-                            ))
-        else:
-            remaining_window = -first_index
-            trade_dates = list(root)
-            trade_date_index = trade_dates.index(date)
-            previous_date = trade_dates[trade_date_index-1]
-            previous_date_last_time = root[previous_date]['dates'][-1]
-            return np.hstack(( retrieve_preceding_prices(symbol, previous_date,
-                                                         previous_date_last_time,
-                                                         remaining_window,
-                                                         concurrent=True),
-                               np.vstack((prices[:last_index],
-                                          times[:last_index]))
-                             ))
-
-def beta(stock_prices, benchmark_prices, timestamps, step=1):
-    stock_prices = stock_prices[::step]
-    benchmark_prices = benchmark_prices[::step]
-    timestamps = timestamps[::step]
-    stock_returns = np.diff(np.log(stock_prices))
-    benchmark_returns = np.diff(np.log(benchmark_prices))
-    covariance = np.cov(stock_returns, benchmark_returns)[0, 1]
-    benchmark_variance = close_close_vol(benchmark_prices, timestamps)
-    print benchmark_variance, np.sqrt(benchmark_variance)
-    benchmark_variance = np.var(benchmark_returns)
-    return covariance / benchmark_variance
-
 def close_close_vol(prices, timestamps, step=1):
     '''timestamps in epoch times, ascending'''
     prices = prices[::step]
@@ -57,26 +17,6 @@ def close_close_vol(prices, timestamps, step=1):
     total_time = (timestamps[-1] - timestamps[0]) / secs_per_year
     annualized_variance = raw_variances.sum() / total_time
     return np.sqrt(annualized_variance)
-
-def test_cointegration():
-    '''+ SPY.qty * SPY.last * SPY.beta * SPY.vol =
-       - VXX.qty * VXX.last * VXX.beta * VXX.vol'''
-    ''' don't need beta and vol ratio'''
-    ''' a pair can be cointegrated with zero beta, so this is a deceptive metric'''
-    ''' d(SPY portfolio value * spy correlation * spy vol) is = to the same for VXX
-        assume correlation of -1 for the trade
-
-        SPYqty * SPYprice * SPYvol = -1 * VXXqty * VXXprice * VXXvol
-        SPYqty/VXXqty = VXXvol/SPYvol * VXXprice/SPYprice
-    '''
-    """
-    stable value portfolio = noptional * beta - notional * beta
-    using vol ratio instead: beta discounts the offsetting stock amount by the
-    correlation. since we don't know which stock to discount (i.e. which leads)
-    we'll pretend the correlation is 100%
-    """
-
-    pass
 
 def backtest():
     # trade parameters
