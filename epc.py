@@ -91,12 +91,15 @@ def backtest():
 
     spy_prices = np.hstack([root[t]["prices"].value[:, 0] for t in trade_dates])
     vxx_prices = np.hstack([root[t]["prices"].value[:, 1] for t in trade_dates])
+    spy_price_changes = np.hstack((0, np.diff(spy_prices)))
+    vxx_price_changes = np.hstack((0, np.diff(vxx_prices)))
     spy_returns = np.hstack((0, np.diff(np.log(spy_prices))))
     vxx_returns = np.hstack((0, np.diff(np.log(vxx_prices))))
 
     timestamps = np.hstack([root[t]["dates"].value for t in trade_dates])
     spy_positions = np.zeros_like(spy_prices)
     vxx_positions = np.zeros_like(spy_prices)
+    signal_positions = np.zeros_like(spy_prices)
     closes = np.hstack([root[t]["dates"].value[-1] for t in trade_dates])
 
     start_time = datetime.datetime.now()
@@ -139,45 +142,73 @@ def backtest():
     big_signal = abs(signal) > signal_std
     big2_signal = abs(signal) > 2 * signal_std
 
+    signal_price_changes = np.hstack((0, np.diff(signal)))
     # determine position
     for i in range(len(spy_prices)):
 # carry position over. will be rewritten below on changes
         spy_positions[i] = spy_positions[i-1]
         vxx_positions[i] = vxx_positions[i-1]
+        signal_positions[i] = signal_positions[i-1]
 # entry condition
         # 2 stddevs away
         if abs(signal[i]) > 2 * signal_std[i]:
+            multiplier = abs(signal[i]) / signal_std[i]
             # and no current position
-            if spy_positions[i] == 0:
+            spy_pos_raw_calc = multiplier * spy_qty[i]
+            vxx_pos_raw_calc = multiplier * vxx_qty[i]
+            if spy_pos_raw_calc > abs(spy_positions[i]):
                 if signal[i] > 0:
                     # sell both
-                    spy_positions[i] = -spy_qty[i]
-                    vxx_positions[i] = -vxx_qty[i]
+                    spy_positions[i] = -spy_pos_raw_calc
+                    vxx_positions[i] = -vxx_pos_raw_calc
+                    signal_positions[i] = -multiplier
                 else:
                     # buy both
-                    spy_positions[i] = spy_qty[i]
-                    vxx_positions[i] = vxx_qty[i]
+                    spy_positions[i] = spy_pos_raw_calc
+                    vxx_positions[i] = vxx_pos_raw_calc
+                    signal_positions[i] = multiplier
 # exit condition
         # close on signal crosses zero
-        if signal_crosses_zero[i]:
-            spy_positions[i] = 0
-            vxx_positions[i] = 0
+        # if signal_crosses_zero[i]:
+        # close on within one standard deviation
+        if abs(signal[i]) < signal_std[i]:
+            if spy_positions[i] != 0:
+                signal_positions[i] = 0
+                spy_positions[i] = 0
+                vxx_positions[i] = 0
     # close position at end
     spy_positions[-1] = 0
 
     total_trades = sum(abs(np.diff(spy_positions != 0)))
-    #TODO: does the zero go athe beginning or end?
     spy_trades = np.hstack((0, np.diff(spy_positions)))
     vxx_trades = np.hstack((0, np.diff(vxx_positions)))
     cash = - vxx_trades * vxx_prices - spy_trades * spy_prices
+    spy_pnls = spy_positions * spy_price_changes
+    vxx_pnls = vxx_positions * vxx_price_changes
+    total_pnls = spy_pnls + vxx_pnls
+    signal_pnls = signal_positions * signal_price_changes
+
+    cost_per_share = .02
+    spy_costs = abs(spy_trades) * cost_per_share
+    vxx_costs = abs(vxx_trades) * cost_per_share
+    total_costs = spy_costs + vxx_costs
 
     print datetime.datetime.now() - start_time
     pyplot.plot(1)
     pyplot.show()
-    pyplot.plot(spy_prices)
-    pyplot.plot(vxx_prices)
+
+    pyplot.plot(spy_prices, "k")
     pyplot.twinx()
+    pyplot.plot(vxx_prices, "r")
+
+    pyplot.figure()
     pyplot.plot(signal)
+    pyplot.plot(signal_std *2, 'r--')
+    pyplot.plot(-signal_std *2, 'r--')
+
+    pyplot.figure()
+    pyplot.plot(np.cumsum(total_pnls))
+    pyplot.plot(np.cumsum(total_costs))
     ipshell()
 
 if __name__ == "__main__":
