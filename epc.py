@@ -35,6 +35,11 @@ def backtest():
     vxx_price_changes = np.hstack((0, np.diff(vxx_prices)))
     spy_returns = np.hstack((0, np.diff(np.log(spy_prices))))
     vxx_returns = np.hstack((0, np.diff(np.log(vxx_prices))))
+    entries_per_day = [len(root[t]["dates"].value) for t in trade_dates]
+    open_index = np.cumsum(entries_per_day) - entries_per_day
+    close_index = np.cumsum(entries_per_day)
+    days = [range(open_index[i], close_index[i]) for i in range(len(trade_dates))]
+    print len(days), len(trade_dates), len(open_index)
 
     timestamps = np.hstack([root[t]["dates"].value for t in trade_dates])
     spy_positions = np.zeros_like(spy_prices)
