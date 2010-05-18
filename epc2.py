@@ -11,7 +11,7 @@ filename = "SPY-VXX-20090507-20100427.hdf5"
 def nans_like(a):
     return np.nan * np.zeros_like(a)
 
-def group(instrlist, attr, start_index=0, end_index=None):
+def stack(instrlist, attr, start_index=0, end_index=None):
     if end_index is None:
         end_index = len(instrlist)
     return np.hstack([getattr(instrlist[t], attr) for t in range(start_index, end_index)])
@@ -29,6 +29,7 @@ def backtest():
 
 
     spy = []; vxx = []; stable_value_portfolio = []
+    vol_ratio_window = 1
     for i in range(len(trade_dates)):
         trade_date = trade_dates[i]
         spy.append(FinancialInstrument(root[trade_date]["prices"].value[:, 0],
@@ -40,19 +41,44 @@ def backtest():
         spy[i].trade_date = trade_date
         vxx[i].trade_date = trade_date
         stable_value_portfolio[i].trade_date = trade_date
+        if i < vol_ratio_window:
+            spy[i].vol = np.nan
+            vxx[i].vol = np.nan
+            spy[i].portfolio_weight = np.nan
+            vxx[i].portfolio_weight = np.nan
+        else:
+            previous_dates = range(i - vol_ratio_window, i)
+            spy[i].vol = sum([spy[p].volatility for p in previous_dates]) / len(previous_dates)
+            vxx[i].vol = sum([vxx[p].volatility for p in previous_dates]) / len(previous_dates)
+            vol_ratio = spy[i].vol / vxx[i].vol
+            last_closing_price_ratio = spy[i - 1].prices[-1] / vxx[i - 1].prices[-1]
+            spy[i].portfolio_weight = 1
+            vxx[i].portfolio_weight = vol_ratio * last_closing_price_ratio
+            stable_value_portfolio[i].prices = spy[i].portfolio_weight * spy[i].prices + vxx[i].portfolio_weight * vxx[i].prices
 
-    vol_ratio_window = 1
-    for i in range(vol_ratio_window, len(trade_dates)):
-        trade_date = trade_dates[i] #TODO compare to the object created in previous forloop
-        previous_dates = range(i - vol_ratio_window, i)
-        vol_ratios = [spy[p].volatility / vxx[p].volatility for p in previous_dates]
-        average_vol_ratio = sum(vol_ratios) / len(vol_ratios)
-        last_closing_price_ratio = spy[i - 1].prices[-1] / vxx[i - 1].prices[-1]
-        spy[i].portfolio_weight = 1
-        vxx[i].portfolio_weight = average_vol_ratio * last_closing_price_ratio
+    pyplot.plot(1)
+    pyplot.show()
 
-        stable_value_portfolio[i].prices = spy[i].portfolio_weight * spy[i].prices + vxx[i].portfolio_weight * vxx[i].prices
+    pyplot.plot(stack(spy, "prices"), "k")
+    pyplot.twinx()
+    pyplot.plot(stack(vxx, "prices"), "r")
+    pyplot.title("vxx/spy prices")
 
+    pyplot.figure()
+    pyplot.plot(stack(stable_value_portfolio, "prices"))
+    pyplot.title("stable value portfolio")
+
+    pyplot.figure()
+    pyplot.plot(stack(spy, "vol"), "k")
+    pyplot.twinx()
+    pyplot.plot(stack(vxx, "vol"), "r")
+    pyplot.title("vxx/spy vol")
+
+    pyplot.figure()
+    pyplot.plot(stack(spy, "portfolio_weight"), "k")
+    pyplot.twinx()
+    pyplot.plot(stack(vxx, "portfolio_weight"), "r")
+    pyplot.title("vxx/spy portfolio weights")
     ipshell()
 
 #     spy_vol = np.hstack((vol_nans[1:],
