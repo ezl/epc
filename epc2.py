@@ -45,7 +45,7 @@ def backtest():
     trade_dates = list(root)
     plot =False
     spy = []; vxx = []; stable_value_portfolio = []
-    vol_ratio_window = 1
+    vol_ratio_window = 1500
     for i in range(len(trade_dates)):
         trade_date = trade_dates[i]
         print i, trade_date
@@ -53,11 +53,16 @@ def backtest():
                                        root[trade_date]["dates"].value))
         vxx.append(FinancialInstrument(root[trade_date]["prices"].value[:, 1],
                                        root[trade_date]["dates"].value))
+        assert vxx[i].prices.shape == spy[i].prices.shape
         stable_value_portfolio.append(FinancialInstrument(nans_like(spy[i].prices),
                                                           root[trade_date]["dates"].value))
+        spy[i].index = np.cumsum(np.ones_like(spy[i].prices)) - 1
+        vxx[i].index = np.cumsum(np.ones_like(vxx[i].prices)) - 1
+
         spy[i].trade_date = trade_date
         vxx[i].trade_date = trade_date
         stable_value_portfolio[i].trade_date = trade_date
+
         if i < vol_ratio_window:
             spy[i].vol = np.nan
             vxx[i].vol = np.nan
