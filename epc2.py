@@ -41,12 +41,6 @@ def retrieve_preceding(instrlist, day, attr, last_index, window, concurrent=True
 
 def backtest():
     # trade parameters
-    vol_window = 1000 # how many timesteps to look back when computing vol
-    portfolio_window = 1000 # ... and for the stable value moving average
-    vol_nans = np.array([np.nan for i in range(vol_window)])
-    portfolio_nans = np.array([np.nan for i in range(portfolio_window)])
-    step = 1
-
     root = h5py.File(filename)
     trade_dates = list(root)
     plot =False
