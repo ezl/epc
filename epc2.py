@@ -21,6 +21,24 @@ def stack(instrlist, attr, start_index=0, end_index=None):
         end_index = len(instrlist)
     return np.hstack([getattr(instrlist[t], attr) for t in range(start_index, end_index)])
 
+def retrieve_preceding(instrlist, day, attr, last_index, window, concurrent=True):
+    if concurrent == True:
+        last_index += 1
+    first_index = last_index - window
+    if first_index >= 0:
+        return getattr(instrlist[day], attr)[first_index:last_index]
+    else:
+        remaining_window = -first_index
+        if day == 0: # thats the end of the chain
+            return None
+        else:
+            previous_last_index = instrlist[day-1].index[-1]
+        preceding = retrieve_preceding(instrlist, day-1, attr, previous_last_index, remaining_window, concurrent=True)
+        if not preceding is None:
+            return np.hstack((preceding, getattr(instrlist[day], attr)[:last_index]))
+        else:
+            return None
+
 def backtest():
     # trade parameters
     vol_window = 1000 # how many timesteps to look back when computing vol
