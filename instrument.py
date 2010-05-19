@@ -3,6 +3,7 @@ import numpy as np
 class FinancialInstrument(object):
     def __init__(self, prices, timestamps):
         '''timestamps as epoch time'''
+        assert prices.shape == timestamps.shape
         self.prices = prices
         self.timestamps = timestamps
 
