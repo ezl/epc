@@ -12,6 +12,11 @@ def nans_like(a):
     return np.nan * np.zeros_like(a)
 
 def stack(instrlist, attr, start_index=0, end_index=None):
+    '''Stack attribute from FinancialInstrument object from specified days into one numpy array
+       usage: stack(spy, "prices", start_index=10, end_index=20)
+              will return attribute "prices" from object spy for list index range(10,20)
+    '''
+
     if end_index is None:
         end_index = len(instrlist)
     return np.hstack([getattr(instrlist[t], attr) for t in range(start_index, end_index)])
