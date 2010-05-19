@@ -32,6 +32,7 @@ def backtest():
     vol_ratio_window = 1
     for i in range(len(trade_dates)):
         trade_date = trade_dates[i]
+        print i, trade_date
         spy.append(FinancialInstrument(root[trade_date]["prices"].value[:, 0],
                                        root[trade_date]["dates"].value))
         vxx.append(FinancialInstrument(root[trade_date]["prices"].value[:, 1],
