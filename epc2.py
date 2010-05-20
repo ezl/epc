@@ -80,7 +80,7 @@ def plot_day_dividers(closes):
 def backtest():
     # trade parameters
     plot = True
-    daily = True
+    daily = False
     vol_ratio_window = 1500
     portfolio_window = 1000
     start_day = 0
@@ -146,24 +146,24 @@ def backtest():
         # pos[0] can be nonzero, still started the day with zero. pos[0] is the pos put on at end of time[0], into time[1]
 
         for i in day_index[day]:
+            # default to carrying over previous position unless trade signal is received
+            spy[day].pos[i] = spy[day].pos[i-1]
+            vxx[day].pos[i] = vxx[day].pos[i-1]
             # entry condition
             if abs(signal[day].strength[i]) > 2:
-                if spy[day].pos[i-1] == 0:
-                    print "entering %s" % i
-                    ipshell(i)
+                # TODO: rebalance the whole portfolio together, not one name at a time.
                 spy[day].pos[i] = -cmp(signal[day].prices[i], 0) * max(spy[day].portfolio_weight[i] * abs(signal[day].strength[i]),
                                                                        abs(spy[day].pos[i-1]))
                 vxx[day].pos[i] = -cmp(signal[day].prices[i], 0) * max(vxx[day].portfolio_weight[i] * abs(signal[day].strength[i]),
                                                                        abs(vxx[day].pos[i-1]))
-                print "hi"
-                ipshell(i)
-
+                if spy[day].pos[i-1] == 0 and not spy[day].pos[i] ==0:
+                    print "                  ENTER a trade"
             # exit condition
-            if abs(signal[day].strength[i]) < 1:
-                if spy[day].pos[i-1] != 0:
-                    print "exiting"
+            elif abs(signal[day].strength[i]) < 1:
                 spy[day].pos[i] = 0
                 vxx[day].pos[i] = 0
+                if not spy[day].pos[i-1] == 0 and spy[day].pos[i] ==0:
+                    print "                                       EXIT a trade"
 
         # close position at end of day
         spy[day].pos[-1] = 0
@@ -220,6 +220,8 @@ def backtest():
         pyplot.plot(np.hstack(timesteps), stack(signal, "prices"))
         pyplot.plot(np.hstack(timesteps), stack(signal, "std"), "r--")
         pyplot.plot(np.hstack(timesteps), -stack(signal, "std"), "r--")
+        pyplot.plot(np.hstack(timesteps), 2 * stack(signal, "std"), "g--")
+        pyplot.plot(np.hstack(timesteps), -2 * stack(signal, "std"), "g--")
         plot_day_dividers(closes)
         pyplot.title("signal")
 
@@ -230,7 +232,9 @@ def backtest():
         pyplot.title("positions")
 
         pyplot.figure()
-        pyplot.plot(np.hstack(timesteps), stack(spy, "totalpnl") + stack(vxx, "totalpnl"))
+        pyplot.plot(np.hstack(timesteps), stack(spy, "totalpnl"), "k")
+        pyplot.plot(np.hstack(timesteps), stack(vxx, "totalpnl"), "r")
+        pyplot.plot(np.hstack(timesteps), stack(spy, "totalpnl") + stack(vxx, "totalpnl"), "g")
         plot_day_dividers(closes)
         pyplot.title("pnl")
     ipshell()
