@@ -23,7 +23,7 @@ class FinancialInstrument(object):
 
     @property
     def price_changes(self):
-        return np.hstack((0, np.diff(self.prices)))
+        return np.hstack((np.diff(self.prices, 0)))
 
     @property
     def volatility(self):

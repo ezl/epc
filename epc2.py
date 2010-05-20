@@ -77,22 +77,20 @@ def get_stat(instrlist, day, last_index, window, attr, fn, concurrent=True):
 def plot_day_dividers(closes):
     [pyplot.axvline(x=c, color="#B0E0E6") for c in closes]
 
-def debugme(*args):
-    pdb.set_trace()
-    get_vol(*args)
-
 def backtest():
     # trade parameters
     plot = True
-    daily = False
+    daily = True
     vol_ratio_window = 1500
     portfolio_window = 1000
+    start_day = 0
+    end_day = 245
 
     root = h5py.File(filename)
     trade_dates = list(root)
     spy = []; vxx = []; stable_value_portfolio = []; signal = []
     timestamps = []; timesteps = []; closes = []; day_index = []
-    for day in range(len(trade_dates)):
+    for day in range(start_day, end_day):
         trade_date = trade_dates[day]
         print day, trade_date
         timestamps.append(root[trade_date]["dates"].value)
@@ -139,55 +137,84 @@ def backtest():
         signal.append(FinancialInstrument(stable_value_portfolio[day].prices - stable_value_portfolio[day].moving_average,
                                           root[trade_date]["dates"].value))
         signal[day].std = np.array([get_std(instrlist=signal, day=day, last_index=i, window=portfolio_window, day_index=day_index, concurrent=True) for i in day_index[day]])
+        signal[day].strength = signal[day].prices / signal[day].std # hugo's signal? how many standard deviations away is it
 
-        # stable_value_portfolio[day].prices = spy[day].portfolio_weight * spy[day].prices + vxx[day].portfolio_weight * vxx[day].prices
+        # define the trade
+        spy[day].pos = np.zeros_like(spy[day].prices)
+        vxx[day].pos = np.zeros_like(vxx[day].prices)
+        # start the day with zero position, but first timestep ends in 15 seconds and you can put on a position then.
+        # pos[0] can be nonzero, still started the day with zero. pos[0] is the pos put on at end of time[0], into time[1]
 
-#         if day < vol_ratio_window:
-#             spy[day].portfolio_weight = np.nan
-#             vxx[day].portfolio_weight = np.nan
-#         else:
-#             previous_dates = range(day - vol_ratio_window, day)
-#             spy[day].vol = sum([spy[p].volatility for p in previous_dates]) / len(previous_dates)
-#             vxx[day].vol = sum([vxx[p].volatility for p in previous_dates]) / len(previous_dates)
-#             vol_ratio = spy[day].vol / vxx[day].vol
-#             last_closing_price_ratio = spy[day - 1].prices[-1] / vxx[day - 1].prices[-1]
-#             spy[day].portfolio_weight = 1
-#             vxx[day].portfolio_weight = vol_ratio * last_closing_price_ratio
-#             stable_value_portfolio[day].prices = spy[day].portfolio_weight * spy[day].prices + vxx[day].portfolio_weight * vxx[day].prices
+        for i in day_index[day]:
+            # entry condition
+            if abs(signal[day].strength[i]) > 2:
+                if spy[day].pos[i-1] == 0:
+                    print "entering %s" % i
+                    ipshell(i)
+                spy[day].pos[i] = -cmp(signal[day].prices[i], 0) * max(spy[day].portfolio_weight[i] * abs(signal[day].strength[i]),
+                                                                       abs(spy[day].pos[i-1]))
+                vxx[day].pos[i] = -cmp(signal[day].prices[i], 0) * max(vxx[day].portfolio_weight[i] * abs(signal[day].strength[i]),
+                                                                       abs(vxx[day].pos[i-1]))
+                print "hi"
+                ipshell(i)
 
+            # exit condition
+            if abs(signal[day].strength[i]) < 1:
+                if spy[day].pos[i-1] != 0:
+                    print "exiting"
+                spy[day].pos[i] = 0
+                vxx[day].pos[i] = 0
+
+        # close position at end of day
+        spy[day].pos[-1] = 0
+        vxx[day].pos[-1] = 0
+
+        # compute p&l
+        spy[day].pnl = spy[day].pos * spy[day].price_changes
+        vxx[day].pnl = vxx[day].pos * vxx[day].price_changes
+        spy[day].daypnl = np.cumsum(spy[day].pnl)
+        vxx[day].daypnl = np.cumsum(vxx[day].pnl)
+        if day != 0:
+            spy[day].totalpnl = spy[day].daypnl + spy[day-1].totalpnl[-1]
+            vxx[day].totalpnl = vxx[day].daypnl + vxx[day-1].totalpnl[-1]
+        else:
+            spy[day].totalpnl = spy[day].daypnl
+            vxx[day].totalpnl = vxx[day].daypnl
+
+    # plot them
     if plot == True:
         pyplot.plot(1)
         pyplot.show()
 
-        pyplot.plot(np.hstack(timesteps), stack(spy, "prices"), "k")
-        pyplot.twinx()
-        pyplot.plot(np.hstack(timesteps), stack(vxx, "prices"), "r")
-        plot_day_dividers(closes)
-        pyplot.title("vxx/spy prices")
-
+#         pyplot.plot(np.hstack(timesteps), stack(spy, "prices"), "k")
+#         pyplot.twinx()
+#         pyplot.plot(np.hstack(timesteps), stack(vxx, "prices"), "r")
+#         plot_day_dividers(closes)
+#         pyplot.title("vxx/spy prices")
+#
 #         pyplot.figure()
 #         pyplot.plot(np.hstack(timesteps), stack(spy, "vol"), "k")
 #         pyplot.twinx()
 #         pyplot.plot(np.hstack(timesteps), stack(vxx, "vol"), "r")
 #         plot_day_dividers(closes)
 #         pyplot.title("vxx/spy vol")
-# 
+#
 #         pyplot.figure()
 #         pyplot.plot(np.hstack(timesteps), stack(spy, "portfolio_weight"), "k")
 #         pyplot.twinx()
 #         pyplot.plot(np.hstack(timesteps), stack(vxx, "portfolio_weight"), "r")
 #         plot_day_dividers(closes)
 #         pyplot.title("vxx/spy portfolio weights")
-# 
+#
 #         pyplot.figure()
 #         pyplot.plot(np.hstack(timesteps), stack(vxx, "vol")/stack(spy, "vol"))
 #         plot_day_dividers(closes)
 #         pyplot.title("spy/vxx vol ratio")
 
-        pyplot.figure()
-        pyplot.plot(np.hstack(timesteps), stack(stable_value_portfolio, "prices"))
-        plot_day_dividers(closes)
-        pyplot.title("stable value portfolio")
+#         pyplot.figure()
+#         pyplot.plot(np.hstack(timesteps), stack(stable_value_portfolio, "prices"))
+#         plot_day_dividers(closes)
+#         pyplot.title("stable value portfolio")
 
         pyplot.figure()
         pyplot.plot(np.hstack(timesteps), stack(signal, "prices"))
@@ -195,6 +222,17 @@ def backtest():
         pyplot.plot(np.hstack(timesteps), -stack(signal, "std"), "r--")
         plot_day_dividers(closes)
         pyplot.title("signal")
+
+        pyplot.figure()
+        pyplot.plot(np.hstack(timesteps), stack(spy, "pos"), "k")
+        pyplot.plot(np.hstack(timesteps), stack(vxx, "pos"), "r")
+        plot_day_dividers(closes)
+        pyplot.title("positions")
+
+        pyplot.figure()
+        pyplot.plot(np.hstack(timesteps), stack(spy, "totalpnl") + stack(vxx, "totalpnl"))
+        plot_day_dividers(closes)
+        pyplot.title("pnl")
     ipshell()
 
 if __name__ == "__main__":
