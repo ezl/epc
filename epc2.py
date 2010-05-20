@@ -80,7 +80,8 @@ def plot_day_dividers(closes):
 def backtest():
     # trade parameters
     plot = True
-    daily = False
+    daily = True
+    cost_per_share = .02
     vol_ratio_window = 1500
     portfolio_window = 1000
     start_day = 0
@@ -174,12 +175,27 @@ def backtest():
         vxx[day].pnl = vxx[day].pos * vxx[day].price_changes
         spy[day].daypnl = np.cumsum(spy[day].pnl)
         vxx[day].daypnl = np.cumsum(vxx[day].pnl)
+        spy[day].trades = np.diff(np.hstack((0, spy[day].pos)))
+        vxx[day].trades = np.diff(np.hstack((0, vxx[day].pos)))
+        spy[day].cost = abs(spy[day].trades * cost_per_share)
+        vxx[day].cost = abs(vxx[day].trades * cost_per_share)
+        spy[day].daycost = np.cumsum(spy[day].cost)
+        vxx[day].daycost = np.cumsum(vxx[day].cost)
         if day != 0:
             spy[day].totalpnl = spy[day].daypnl + spy[day-1].totalpnl[-1]
             vxx[day].totalpnl = vxx[day].daypnl + vxx[day-1].totalpnl[-1]
+            spy[day].totalcost = spy[day].daycost + spy[day-1].totalcost[-1]
+            vxx[day].totalcost = vxx[day].daycost + vxx[day-1].totalcost[-1]
         else:
             spy[day].totalpnl = spy[day].daypnl
             vxx[day].totalpnl = vxx[day].daypnl
+            spy[day].totalcost = spy[day].daycost
+            vxx[day].totalcost = vxx[day].daycost
+        # compute costs
+
+
+
+
 
     # plot them
     if plot == True:
@@ -235,6 +251,7 @@ def backtest():
         pyplot.plot(np.hstack(timesteps), stack(spy, "totalpnl"), "k")
         pyplot.plot(np.hstack(timesteps), stack(vxx, "totalpnl"), "r")
         pyplot.plot(np.hstack(timesteps), stack(spy, "totalpnl") + stack(vxx, "totalpnl"), "g")
+        pyplot.plot(np.hstack(timesteps), stack(spy, "totalcost") + stack(vxx, "totalcost"), "g--")
         plot_day_dividers(closes)
         pyplot.title("pnl")
     ipshell()
