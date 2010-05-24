@@ -112,34 +112,36 @@ def backtest():
             try:
                 spy[day].vol = np.ones_like(spy[day].prices) * spy[day-1].volatility
                 vxx[day].vol = np.ones_like(vxx[day].prices) * vxx[day-1].volatility
-                last_ratio = np.ones_like(spy[day].prices) * (spy[day-1].prices[-1] / vxx[day-1].prices[-1])
+                spy[day].previous_close = np.ones_like(spy[day].prices) * spy[day-1].prices[-1]
+                vxx[day].previous_close = np.ones_like(vxx[day].prices) * vxx[day-1].prices[-1]
             except IndexError:
                 pass
-                # spy[day].vol = nans_like(spy[day].prices)
-                # vxx[day].vol = nans_like(spy[day].prices)
-                # spy[day].portfolio_weight = nans_like(spy[day].prices)
-                # vxx[day].portfolio_weight = nans_like(spy[day].prices)
             else:
-                vol_ratio = spy[day].vol / vxx[day].vol
-                spy[day].portfolio_weight = np.ones_like(spy[day].prices)
-                vxx[day].portfolio_weight = vol_ratio * last_ratio
+                spy[day].normalized_return = (spy[day].prices - spy[day].previous_close) / spy[day].previous_close / spy[day].vol
+                vxx[day].normalized_return = (vxx[day].prices - vxx[day].previous_close) / vxx[day].previous_close / vxx[day].vol
+                spy[day].portfolio_weight = 1.0 / (spy[day].previous_close * spy[day].vol)
+                vxx[day].portfolio_weight = 1.0 / (vxx[day].previous_close * vxx[day].vol)
 
         # recompute everything at every timestep
         else:
             spy[day].vol = np.array([get_vol(instrlist=spy, day=day, last_index=i, window=vol_ratio_window, day_index=day_index, concurrent=True) for i in day_index[day]])
             vxx[day].vol = np.array([get_vol(instrlist=vxx, day=day, last_index=i, window=vol_ratio_window, day_index=day_index, concurrent=True) for i in day_index[day]])
-            vol_ratio = spy[day].vol / vxx[day].vol
-            last_ratio = spy[day].prices / vxx[day].prices
-            spy[day].portfolio_weight = np.ones_like(spy[day].prices)
-            vxx[day].portfolio_weight = vol_ratio * last_ratio
+            spy[day].portfolio_weight = 1.0 / (spy[day].prices * spy[day].vol)
+            vxx[day].portfolio_weight = 1.0 / (vxx[day].prices * vxx[day].vol)
 
         stable_value_portfolio.append(FinancialInstrument(spy[day].portfolio_weight * spy[day].prices + vxx[day].portfolio_weight * vxx[day].prices,
                                                           timestamps[day]))
         stable_value_portfolio[day].moving_average = np.array([get_moving_average(instrlist=stable_value_portfolio, day=day, last_index=i, window=portfolio_window, day_index=day_index, concurrent=True) for i in day_index[day]])
-        signal.append(FinancialInstrument(stable_value_portfolio[day].prices - stable_value_portfolio[day].moving_average,
-                                          root[trade_date]["dates"].value))
+        # my stable value portfolio at t1 is computed from the previous day's prices with 2 previous day's vols. different roll time than H.
+#         signal.append(FinancialInstrument(stable_value_portfolio[day].prices - stable_value_portfolio[day].moving_average,
+#                                           root[trade_date]["dates"].value))
+#         signal[day].std = np.array([get_std(instrlist=signal, day=day, last_index=i, window=portfolio_window, day_index=day_index, concurrent=True) for i in day_index[day]])
+#         signal[day].strength = signal[day].prices / signal[day].std # H's signal? how many standard deviations away is it
+        signal.append(FinancialInstrument(spy[day].normalized_return + vxx[day].normalized_return,
+                                          timestamps[day]))
         signal[day].std = np.array([get_std(instrlist=signal, day=day, last_index=i, window=portfolio_window, day_index=day_index, concurrent=True) for i in day_index[day]])
-        signal[day].strength = signal[day].prices / signal[day].std # h's signal? how many standard deviations away is it
+        signal[day].strength = signal[day].prices / signal[day].std # H's signal? how many standard deviations away is it
+
 
         # define the trade
         spy[day].pos = np.zeros_like(spy[day].prices)
