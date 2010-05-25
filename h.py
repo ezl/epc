@@ -81,6 +81,19 @@ def get_normalized_return(price, anchor_price, vol):
 def plot_day_dividers(closes):
     [pyplot.axvline(x=c, color="#B0E0E6") for c in closes]
 
+def get_position(signal, pos, zero_preference, entry_increment, trade_buffer):
+    done = False
+    while not done:
+        if abs(signal) > abs(pos * entry_increment + trade_buffer + zero_preference):
+            pos += -cmp(signal, 0)
+            print pos, entry_increment, trade_buffer, zero_preference
+        elif abs(signal) < abs((pos - 1) * entry_increment + zero_preference):
+            pos += cmp(signal, 0)
+            print pos
+        else:
+            done = True
+    return pos
+
 def backtest():
     # trade parameters
     plot = True
@@ -170,10 +183,16 @@ def backtest():
         # start the day with zero position, but first timestep ends in 15 seconds and you can put on a position then.
         # pos[0] can be nonzero, still started the day with zero. pos[0] is the pos put on at end of time[0], into time[1]
 
+        pos = 0
         for i in day_index[day]:
             # default to carrying over previous position unless trade signal is received
-            spy[day].pos[i] = -signal[day].strength[i] * spy[day].portfolio_weight
-            vxx[day].pos[i] = -signal[day].strength[i] * vxx[day].portfolio_weight
+            spy[day].pos[i] = spy[day].pos[i-1]
+            vxx[day].pos[i] = vxx[day].pos[i-1]
+            pos = get_position(signal=signal[day].strength[i], pos=pos, zero_preference=signal[day].std, entry_increment=signal[day].std, trade_buffer=4*cost_per_share)
+            # spy[day].pos[i] = -signal[day].strength[i] * spy[day].portfolio_weight
+            # vxx[day].pos[i] = -signal[day].strength[i] * vxx[day].portfolio_weight
+            spy[day].pos[i] = pos * spy[day].portfolio_weight
+            vxx[day].pos[i] = pos * vxx[day].portfolio_weight
 # <commented out for now>
 #             spy[day].pos[i] = spy[day].pos[i-1]
 #             vxx[day].pos[i] = vxx[day].pos[i-1]
