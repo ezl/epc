@@ -2,6 +2,7 @@ import h5py
 import numpy as np
 from matplotlib import pyplot
 from instrument import FinancialInstrument
+import time
 from IPython.Shell import IPShellEmbed
 import datetime
 import pdb
@@ -82,16 +83,24 @@ def plot_day_dividers(closes):
     [pyplot.axvline(x=c, color="#B0E0E6") for c in closes]
 
 def get_position(signal, pos, zero_preference, entry_increment, trade_buffer):
+    if entry_increment == 0:
+        ipshell("fuck you")
     done = False
     while not done:
-        if abs(signal) > abs(pos * entry_increment + trade_buffer + zero_preference):
+        entry_level = abs(pos) * entry_increment + trade_buffer + zero_preference
+        exit_level = abs(max(0, pos - 1)) * entry_increment + zero_preference
+        if abs(signal) > entry_level:
             pos += -cmp(signal, 0)
-            print pos, entry_increment, trade_buffer, zero_preference
-        elif abs(signal) < abs((pos - 1) * entry_increment + zero_preference):
-            pos += cmp(signal, 0)
-            print pos
+#            print pos, entry_level, signal, exit_level
+        elif abs(signal) < exit_level:
+            pos += -cmp(pos, 0)
+#            print pos, entry_level, signal, exit_level
         else:
             done = True
+        if -zero_preference < signal < zero_preference:
+            pos = 0
+            done = True
+
     return pos
 
 def backtest():
@@ -188,7 +197,8 @@ def backtest():
             # default to carrying over previous position unless trade signal is received
             spy[day].pos[i] = spy[day].pos[i-1]
             vxx[day].pos[i] = vxx[day].pos[i-1]
-            pos = get_position(signal=signal[day].strength[i], pos=pos, zero_preference=signal[day].std, entry_increment=signal[day].std, trade_buffer=4*cost_per_share)
+            s = signal[day-1].strength.std()
+            pos = get_position(signal=signal[day].strength[i], pos=pos, zero_preference=signal[day].std, entry_increment=s, trade_buffer=4*cost_per_share+3*s)
             # spy[day].pos[i] = -signal[day].strength[i] * spy[day].portfolio_weight
             # vxx[day].pos[i] = -signal[day].strength[i] * vxx[day].portfolio_weight
             spy[day].pos[i] = pos * spy[day].portfolio_weight
